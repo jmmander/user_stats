@@ -1,0 +1,192 @@
+# -------------------------------------------------------------------------------- NOTEBOOK-CELL: CODE
+from datetime import datetime
+import collections
+import json
+import itertools, operator
+from itertools import groupby
+from itertools import chain
+
+# -------------------------------------------------------------------------------- NOTEBOOK-CELL: CODE
+import dataiku
+from dataiku import pandasutils as pdu
+import pandas as pd
+from collections import defaultdict
+
+# -------------------------------------------------------------------------------- NOTEBOOK-CELL: CODE
+import dataiku
+
+client = dataiku.api_client()
+
+# -------------------------------------------------------------------------------- NOTEBOOK-CELL: CODE
+dss_users = client.list_users()
+for user in dss_users:
+    print(user)
+
+# -------------------------------------------------------------------------------- NOTEBOOK-CELL: CODE
+dss_projects = client.list_project_keys()
+print(dss_projects)
+
+# -------------------------------------------------------------------------------- NOTEBOOK-CELL: CODE
+def get_envs(project):
+    envlist = []
+    project_settings = project.get_settings()
+    data = project_settings.get_raw()
+    lang_dic = data['settings']['codeEnvs']
+    for k,v in lang_dic.items():
+        if 'envName' in v:
+            code_env = (proj, (v['envName']))
+            envlist.append(code_env)
+
+    return envlist
+
+# -------------------------------------------------------------------------------- NOTEBOOK-CELL: CODE
+for proj in dss_projects:
+    project = client.get_project(proj)
+    project_perm = project.get_metadata()
+    print(project_perm)
+    print("-------------------------------------------------------------")
+
+# -------------------------------------------------------------------------------- NOTEBOOK-CELL: CODE
+def get_meta(project):
+#gets proj metadata - created date and by
+    all_meta = []
+    project_metadata = project.get_metadata()
+    meta = (project_metadata['checklists'].values())
+    meta_dic = meta[0]
+    if len(meta_dic) > 0:
+        for stats in meta_dic:
+            new = stats['items']
+            for dic in new:
+                creadate = dic['createdOn']
+                creaby = dic['createdBy']
+                tup = creaby,creadate
+                all_meta.append(tup)
+        return all_meta
+    else:
+        return []
+
+# -------------------------------------------------------------------------------- NOTEBOOK-CELL: CODE
+def get_jobs(project):
+
+    all_jobs = []
+    jobs = project.list_jobs()
+    if len(jobs) > 0:
+        for info in jobs:
+            starttime = info['startTime']
+            user = info['def']['initiator']
+            tup = (user,starttime)
+            all_jobs.append(tup)
+        return all_jobs
+    else:
+        return []
+
+# -------------------------------------------------------------------------------- NOTEBOOK-CELL: CODE
+def get_recipes(project):
+    all_recs = []
+    recipes = project.list_recipes()
+    if recipes != []:
+        for rec in recipes:
+            user = rec["versionTag"]['lastModifiedBy']['login']
+            date = rec["versionTag"]["lastModifiedOn"]
+            tup = (user, date)
+            all_recs.append(tup)
+        return all_recs
+    else:
+        return []
+
+project = client.get_project('YOUAREMYHERO')
+rec = get_recipes(project)
+print(rec)
+
+# -------------------------------------------------------------------------------- NOTEBOOK-CELL: CODE
+ def get_notebooks(project):
+    all_notes = []
+    notebooks = project.list_running_notebooks(as_objects=False)
+    if notebooks != []:
+        for book in notebooks:
+            print(book)
+            date = book['lastModifiedOn']
+            user = book['creator']
+            tup = (user, date)
+            all_notes.append(tup)
+        return all_notes
+    else:
+        return []
+
+# -------------------------------------------------------------------------------- NOTEBOOK-CELL: CODE
+activity = {}
+
+def to_time(epoch):
+    time = int((epoch)/1000)
+    form =(datetime.fromtimestamp(time).strftime("%Y-%m-%d %I:%M:%S"))
+    return form
+
+total = 0
+all_projects = []
+for proj in dss_projects:
+    project = client.get_project(proj)
+    print(proj)
+    meta = get_meta(project)
+    jobs = get_jobs(project)
+    recipes = get_recipes(project)
+    notebooks = get_notebooks(project)
+    all_data = meta+jobs+recipes+notebooks
+    all_data = sorted(all_data)
+    print(all_data)
+
+
+    envs = get_envs(project)
+
+
+
+
+sorted_projects = sorted(all_projects)
+#for tup in all_projects:
+ #   if 'alex' in tup[0]:
+  #      print(tup[0],to_time(tup[1]))
+
+
+
+an_iterator = itertools.groupby(sorted_projects, lambda x : x[0])
+
+user_dic = {}
+for key, group in an_iterator:
+    latest = max(group)
+    user_dic[latest[0]] = to_time(latest[1])
+
+print(user_dic)
+
+# -------------------------------------------------------------------------------- NOTEBOOK-CELL: CODE
+#gets list of projects created by each user
+all_proj_data = []
+for proj in dss_projects:
+    project = client.get_project(proj)
+    meta = get_meta(project)
+
+    for tup in meta:
+        time = tup[1]
+        user = tup[0]
+        readable = to_time(time)
+        info = (user, proj)
+    all_proj_data.append(info)
+    fin = [t for t in (set(tuple(i) for i in all_proj_data))]
+    d = defaultdict(list)
+    for k, v in fin:
+       d[k].append(v)
+
+
+print(dict(d))
+
+# -------------------------------------------------------------------------------- NOTEBOOK-CELL: MARKDOWN
+# json_formatted_str = json.dumps(activity, indent=2)
+# 
+# print(json_formatted_str)
+
+# -------------------------------------------------------------------------------- NOTEBOOK-CELL: CODE
+project = client.get_project('DKUDEP')
+print(project.list_scenarios())
+
+# -------------------------------------------------------------------------------- NOTEBOOK-CELL: CODE
+# Recipe outputs
+new = dataiku.Dataset("new")
+new.write_with_schema(pandas_dataframe)
